@@ -5,18 +5,31 @@ from airflow.utils.decorators import apply_defaults
 class LoadDimensionOperator(BaseOperator):
 
     ui_color = '#80BD9E'
+    allowed_modes = ('delete-load', 'append-only')
 
     @apply_defaults
     def __init__(self,
-                 # Define your operators params (with defaults) here
-                 # Example:
-                 # conn_id = your-connection-name
+                 redshift_conn_id = 'redshift',
+                 insert_mode='delete-load', # allows switching between insert modes
+                 truncate_sql = '',
+                 insert_sql = '',
+                 create_sql = '',
                  *args, **kwargs):
 
         super(LoadDimensionOperator, self).__init__(*args, **kwargs)
-        # Map params here
-        # Example:
-        # self.conn_id = conn_id
+        if insert_mode not in self.allowed_modes:
+            raise ValueError('{mode} is not a valid mode')
+        self.redshift_conn_id = redshift_conn_id
+        self.insert_mode = insert_mode
+        self.create_sql = create_sql
+        self.inser_sql = insert_sql
+        self.truncate_sql = truncate_sql
 
     def execute(self, context):
-        self.log.info('LoadDimensionOperator not implemented yet')
+        hook = PostgresHook(self.redshift_conn_id)
+        hook.run(self.create_sql)
+        if self.insert_mode == 'delete-load':
+            hook.run(self.truncate_sql)
+        hook.run(self.inser_sql)
+        self.log.info('Loaded Dimension data')
+
